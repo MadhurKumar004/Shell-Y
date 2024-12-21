@@ -7,6 +7,7 @@
 
 void execute_cmd(char *input);
 void handle_redirection(char **,int *,int *);
+void execute_background(pid_t);
 
 int main(){
 	char *input=NULL;
@@ -41,7 +42,12 @@ void execute_cmd(char *input){
 	int cmd_count=0;
 	int pipe_fd[2];
 	int in_fd=0,out_fd=0;
+	int is_background=0;
 	
+	if(input[strlen(input)-1]=='&'){
+		is_background=1;
+		input[strlen(input)-1]='\0';
+	}
 	
 	commands[cmd_count]=strtok(input,"|");
 	while(commands[cmd_count]!=NULL){
@@ -109,7 +115,12 @@ void execute_cmd(char *input){
 			}
 		}
 		else{
-			waitpid(pid,NULL,0);
+			if(is_background){
+				execute_background(pid);
+			}
+			else{
+				waitpid(pid,NULL,0);
+			}
 			if(in_fd!=0) close(in_fd);
 			if(i<cmd_count-1){
 				close(pipe_fd[1]);
@@ -139,5 +150,20 @@ void handle_redirection(char **args,int *in_fd,int *out_fd){
 			args[i]=NULL;
 			break;
 		}
+		if(strcmp(args[i],">>")==0){
+			*out_fd=open(args[i+i],O_WRONLY | O_CREAT | O_APPEND,0644);
+			if(*out_fd<0){
+				perror("output redirection (append) fail");
+			}
+			args[i]=NULL;
+			break;
+		}
 	}
+}
+
+void execute_background(pid_t pid){
+	printf("%d\n",pid);
+	if (waitpid(pid, &status, WNOHANG) > 0) {
+        	printf("Background process %d terminated\n", pid);
+    	}
 }
