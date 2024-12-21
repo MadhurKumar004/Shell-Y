@@ -35,42 +35,79 @@ int main(){
 void execute_cmd(char *input){
 	char *args[100];
 	char *token;
-	int i=0;
-	token=strtok(input," ");
-	while(token!=NULL){
-		args[i++]=token;
-		token=strtok(NULL," ");
+	int i=0,cmd_count=0;
+	int pipe_fd[2],in_fd;
+	char *commands[100];
+	
+	commands[cmd_count]=strtok(input,"|");
+	while(commands[cmd_count]!=NULL){
+		cmd_count++;
+		commands[cmd_count]=strtok(NULL,"|");
 	}
-	args[i]=NULL;
-	if(strcmp(args[0],"cd")==0){
+	
+	for(i=0;i<cmd_count;i++){
+		char *command=commands[i];
+		int j=0;
+		token=strtok(command," ");
+		while(token!=NULL){
+			args[j++]=token;
+			token=strtok(NULL," ");
+		}
+		args[j]=NULL;
 		
-		if(args[1]==NULL){
-			const char *home=getenv("HOME");
-			if(home==NULL){
-				fprintf(stderr,"cd: home is not set\n");
+		if(strcmp(args[0],"cd")==0){
+			if(args[1]==NULL){
+				const char *home=getenv("HOME");
+				if(home==NULL){
+					fprintf(stderr,"cd: home is not set\n");
+				}
+				else if(chdir(home)!=0){
+					perror("cd");
+				}
 			}
-			else if(chdir(home)!=0){
+			else if(chdir(args[1])!=0){
 				perror("cd");
 			}
 		}
-		else if(chdir(args[1])!=0){
-			perror("cd");
+		
+		if(i<cmd_count-1){
+			if(pipe(pipe_fd)==-1){
+				perror("pipe error");
+				exit(EXIT_FAILURE);
+			}
 		}
-	}
-	else{
+		
+		
 		pid_t pid;
 		if((pid=fork())<0){
 			perror("fork error");
+			exit(EXIT_FAILURE);
 		}
 		else if(pid==0){
+			if(in_fd!=0){
+				dup2(in_fd,STDIN_FILENO);
+				close(in_fd);
+			}
+			if(i<cmd_count-1){
+				dup2(pipe_fd[1],STDOUT_FILENO);
+				close(pipe_fd[1]);
+				close(pipe_fd[0]);
+			}
 			if(execvp(args[0],args)==-1){
 				perror("exec error");
 				exit(EXIT_FAILURE);
 			}
 		}
 		else{
-			wait(NULL);	
+			waitpid(pid,NULL,0);
+			if(in_fd!=0) close(in_fd);
+			if(i<cmd_count-1){
+				close(pipe_fd[1]);
+				in_fd=pipe_fd[0];
+			}	
 		}
-		
+			
 	}
+	
+	
 }
