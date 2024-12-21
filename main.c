@@ -3,8 +3,10 @@
 #include<unistd.h>
 #include<string.h>
 #include<sys/wait.h>
+#include<fcntl.h>
 
 void execute_cmd(char *input);
+void handle_redirection(char **,int *,int *);
 
 int main(){
 	char *input=NULL;
@@ -34,10 +36,12 @@ int main(){
 
 void execute_cmd(char *input){
 	char *args[100];
-	char *token;
-	int i=0,cmd_count=0;
-	int pipe_fd[2],in_fd;
 	char *commands[100];
+	char *token;
+	int cmd_count=0;
+	int pipe_fd[2];
+	int in_fd=0,out_fd=0;
+	
 	
 	commands[cmd_count]=strtok(input,"|");
 	while(commands[cmd_count]!=NULL){
@@ -45,7 +49,7 @@ void execute_cmd(char *input){
 		commands[cmd_count]=strtok(NULL,"|");
 	}
 	
-	for(i=0;i<cmd_count;i++){
+	for(int i=0;i<cmd_count;i++){
 		char *command=commands[i];
 		int j=0;
 		token=strtok(command," ");
@@ -70,6 +74,8 @@ void execute_cmd(char *input){
 			}
 		}
 		
+		handle_redirection(args,&in_fd,&out_fd);
+		
 		if(i<cmd_count-1){
 			if(pipe(pipe_fd)==-1){
 				perror("pipe error");
@@ -88,6 +94,10 @@ void execute_cmd(char *input){
 				dup2(in_fd,STDIN_FILENO);
 				close(in_fd);
 			}
+			if(out_fd!=0){
+				dup2(out_fd,STDOUT_FILENO);
+				close(out_fd);
+			}
 			if(i<cmd_count-1){
 				dup2(pipe_fd[1],STDOUT_FILENO);
 				close(pipe_fd[1]);
@@ -105,9 +115,29 @@ void execute_cmd(char *input){
 				close(pipe_fd[1]);
 				in_fd=pipe_fd[0];
 			}	
-		}
-			
+		}		
 	}
-	
-	
+}
+
+void handle_redirection(char **args,int *in_fd,int *out_fd){
+	for(int i=0;args[i]!=NULL;i++){
+		if(strcmp(args[i],"<")==0){
+			*in_fd=open(args[i+1],O_RDONLY);
+			if(*in_fd<0){
+				perror("Input redirection failed");
+				exit(EXIT_FAILURE);
+			}
+			args[i]=NULL;
+			break;
+		}
+		if(strcmp(args[i],">")==0){
+			*out_fd=open(args[i+1],O_WRONLY | O_CREAT | O_TRUNC,0644);
+			if(*out_fd<0){
+				perror("output redirection error");
+				exit(EXIT_FAILURE);
+			}
+			args[i]=NULL;
+			break;
+		}
+	}
 }
