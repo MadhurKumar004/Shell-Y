@@ -1,0 +1,10 @@
+bin
+obj
+src/env.c
+src/history.c
+src/path.c
+src/signle_handlers.c
+include/env.h
+include/path.h
+include/signle_handlers.h
+include/history.h
